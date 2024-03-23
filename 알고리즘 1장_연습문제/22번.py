@@ -1,12 +1,11 @@
-import queue
+def reverse(string):
+    stack = list(string)
+    reversed = ""
+    while stack:
+        reversed += stack.pop()
+    return reversed
 
-instr=input("문자열 입력 : ")
-s=queue.LifoQueue()
-
-for ch in instr :
-    s.put(ch)
-
-print("역순 문자열", end="")
-while not s.empty() :
-    print (s.get(), end="")
-print()
+if __name__ == "__main__":
+    string = input("문자열을 입력하세요: ")
+    reversed = reverse(string)
+    print("역순으로 출력된 문자열:", reversed)
