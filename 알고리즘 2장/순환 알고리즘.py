@@ -6,5 +6,5 @@ def hanoi_tower(n, fr, tmp, to):
         print("원판 %s: %s --> %s" % (n, fr, to))
         hanoi_tower(n-1, tmp, fr, to)
 
-n = int(input("원판의 갯수를 입력하시오(타워는 3개) : "))
+n = int(input("원판의 갯수(타워는 3개) >>> "))
 hanoi_tower(n, 'A', 'B', 'C')
