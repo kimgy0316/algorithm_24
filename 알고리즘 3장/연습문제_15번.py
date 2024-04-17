@@ -34,10 +34,10 @@ def hamiltonian_cycle(g):
         return True
 
 # 간단한 그래프 테스트
-g_simple = [[0, 1, 1, 0],
+g = [[0, 1, 1, 0],
             [1, 0, 1, 1],
             [1, 1, 0, 1],
             [0, 1, 1, 0]]
 
-print("간단한 그래프 테스트:")
-hamiltonian_cycle(g_simple)
+print("간단한 그래프 테스트: ", g)
+hamiltonian_cycle(g)
