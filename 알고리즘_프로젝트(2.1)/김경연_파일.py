@@ -31,13 +31,13 @@ def delete_contact(contact_list, name, phone_number):
     messagebox.showerror("Error", f"일치하는 연락처를 찾을 수 없습니다: {name}, 전화번호: {phone_number}")
 
 def search_contact(contact_list, name, listbox):
-    found_contacts = [contact for contact in contact_list if name in contact.name]
+    found_contacts = sorted([contact for contact in contact_list if name in contact.name], key=lambda x: (x.name, x.phone_number))
     listbox.delete(0, tk.END)
     for contact in found_contacts:
         listbox.insert(tk.END, contact.print_info())
 
 def update_contact(contact_list, name):
-    matching_contacts = [contact for contact in contact_list if name in contact.name]
+    matching_contacts = sorted([contact for contact in contact_list if name in contact.name], key=lambda x: (x.name, x.phone_number))
     if matching_contacts:
         phone_numbers = "\n".join([contact.phone_number for contact in matching_contacts])
         selected_phone_number = simpledialog.askstring("Input", f"{name}의 전화번호를 선택하세요:\n{phone_numbers}")
@@ -65,12 +65,20 @@ def save_contacts(contact_list, filename="contacts.json"):
 def load_contacts(contact_list, listbox, filename="contacts.json"):
     if os.path.exists(filename):
         with open(filename, "r") as file:
-            json_list = json.load(file)
-            contact_list.clear()  # 기존 연락처 리스트 초기화
-            for contact in json_list:
-                contact_list.append(Contact(contact["name"], contact["phone_number"]))
-            contact_list.sort(key=lambda x: (x.name, x.phone_number))  # 이름을 가나다순으로 정렬 후, 동일한 이름의 경우 전화번호 오름차순으로 정렬
-        refresh_listbox(contact_list, listbox)  # 리스트박스 업데이트
+            try:
+                json_list = json.load(file)
+                contact_list.clear()  # 기존 연락처 리스트 초기화
+                for contact in json_list:
+                    name = contact.get("name", "")
+                    phone_number = contact.get("phone_number", "")
+                    if name and phone_number:
+                        contact_list.append(Contact(name, phone_number))
+                    else:
+                        messagebox.showerror("Error", "연락처 파일에 필수 정보가 누락되었습니다.")
+                contact_list.sort(key=lambda x: (x.name, x.phone_number))  # 이름을 가나다순으로 정렬 후, 동일한 이름의 경우 전화번호 오름차순으로 정렬
+                refresh_listbox(contact_list, listbox)  # 리스트박스 업데이트
+            except json.JSONDecodeError:
+                messagebox.showerror("Error", "저장된 연락처 파일을 읽을 수 없습니다.")
     else:
         messagebox.showerror("Error", "저장된 연락처 파일을 찾을 수 없습니다.")
 
@@ -83,7 +91,7 @@ def on_add_contact(contact_list, listbox):
 def on_delete_contact(contact_list, listbox):
     name = simpledialog.askstring("Input", "삭제할 고객명:")
     if name:
-        matching_contacts = [contact for contact in contact_list if name in contact.name]
+        matching_contacts = sorted([contact for contact in contact_list if name in contact.name], key=lambda x: (x.name, x.phone_number))
         if matching_contacts:
             phone_numbers = "\n".join([contact.phone_number for contact in matching_contacts])
             selected_phone_number = simpledialog.askstring("Input", f"{name}의 전화번호를 선택하세요:\n{phone_numbers}")
@@ -143,14 +151,14 @@ def create_gui(contact_list):
     update_button = tk.Button(button_frame, text="수정", command=lambda: on_update_contact(contact_list))
     update_button.pack(fill=tk.X)
 
+    home_button = tk.Button(button_frame, text="홈", command=lambda: on_home(contact_list, listbox))
+    home_button.pack(fill=tk.X)
+
     exit_button = tk.Button(button_frame, text="종료", command=lambda: on_exit(contact_list))
     exit_button.pack(fill=tk.X)
 
-    home_button = tk.Button(button_frame, text="홈으로", command=lambda: on_home(contact_list, listbox))
-    home_button.pack(fill=tk.X)
-
-    load_contacts(contact_list, listbox)
-
+    load_contacts(contact_list, listbox)  # 프로그램 시작 시 저장된 연락처 불러오기
+    
     root.mainloop()
 
 if __name__ == "__main__":
