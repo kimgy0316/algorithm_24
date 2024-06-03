@@ -22,16 +22,16 @@ def set_contact(contact_list):
         return Contact(name, phone_number)
     return None
 
-def delete_contact(contact_list, name):
+def delete_contact(contact_list, name, phone_number):
     for i, contact in enumerate(contact_list):
-        if contact.name == name:
+        if contact.name == name and contact.phone_number == phone_number:
             del contact_list[i]
-            messagebox.showinfo("Deleted", f"Deleted contact: {name}")
+            messagebox.showinfo("Deleted", f"[삭제] 이름: {name}, 전화번호: {phone_number}")
             return
-    messagebox.showerror("Error", f"Contact {name} not found")
+    messagebox.showerror("Error", f"일치하는 연락처를 찾을 수 없습니다: {name}, 전화번호: {phone_number}")
 
 def search_contact(contact_list, name, listbox):
-    found_contacts = [contact for contact in contact_list if contact.name == name]
+    found_contacts = [contact for contact in contact_list if name in contact.name]
     listbox.delete(0, tk.END)
     for contact in found_contacts:
         listbox.insert(tk.END, contact.print_info())
@@ -76,8 +76,15 @@ def on_add_contact(contact_list, listbox):
 def on_delete_contact(contact_list, listbox):
     name = simpledialog.askstring("Input", "삭제할 고객명:")
     if name:
-        delete_contact(contact_list, name)
-        refresh_listbox(contact_list, listbox)
+        matching_contacts = [contact for contact in contact_list if name in contact.name]
+        if matching_contacts:
+            phone_numbers = "\n".join([contact.phone_number for contact in matching_contacts])
+            selected_phone_number = simpledialog.askstring("Input", f"{name}의 전화번호를 선택하세요:\n{phone_numbers}")
+            if selected_phone_number:
+                delete_contact(contact_list, name, selected_phone_number)
+                refresh_listbox(contact_list, listbox)
+        else:
+            messagebox.showerror("Error", f"일치하는 연락처를 찾을 수 없습니다: {name}")
 
 def on_search_contact(contact_list, listbox):
     name = simpledialog.askstring("Input", "검색할 고객명:")
@@ -129,7 +136,7 @@ def create_gui(contact_list):
     exit_button = tk.Button(button_frame, text="종료", command=lambda: on_exit(contact_list))
     exit_button.pack(fill=tk.X)
 
-    load_contacts(contact_list, listbox)  # 수정된 부분: listbox 변수를 load_contacts 함수에 전달
+    load_contacts(contact_list, listbox)
 
     root.mainloop()
 
