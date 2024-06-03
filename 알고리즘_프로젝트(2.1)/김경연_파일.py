@@ -54,7 +54,6 @@ def save_contacts(contact_list, filename="contacts.json"):
     with open(filename, "w") as file:
         json_list = [{"name": contact.name, "phone_number": contact.phone_number} for contact in contact_list]
         json.dump(json_list, file)
-    messagebox.showinfo("Saved", "연락처가 성공적으로 저장되었습니다.")
 
 def load_contacts(contact_list, listbox, filename="contacts.json"):
     if os.path.exists(filename):
@@ -65,7 +64,6 @@ def load_contacts(contact_list, listbox, filename="contacts.json"):
                 contact_list.append(Contact(contact["name"], contact["phone_number"]))
             contact_list.sort(key=lambda x: (x.name, x.phone_number))  # 이름을 가나다순으로 정렬 후, 동일한 이름의 경우 전화번호 오름차순으로 정렬
         refresh_listbox(contact_list, listbox)  # 리스트박스 업데이트
-        messagebox.showinfo("Loaded", "연락처가 성공적으로 불러와졌습니다.")
     else:
         messagebox.showerror("Error", "저장된 연락처 파일을 찾을 수 없습니다.")
 
