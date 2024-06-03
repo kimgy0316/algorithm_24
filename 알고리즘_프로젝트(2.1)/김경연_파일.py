@@ -22,33 +22,53 @@ def set_contact(contact_list):
         return Contact(name, phone_number)
     return None
 
-def delete_contact(contact_list, name, phone_number):
-    for i, contact in enumerate(contact_list):
-        if contact.name == name and contact.phone_number == phone_number:
-            del contact_list[i]
-            messagebox.showinfo("Deleted", f"[삭제] 이름: {name}, 전화번호: {phone_number}")
-            return
-    messagebox.showerror("Error", f"일치하는 연락처를 찾을 수 없습니다: {name}, 전화번호: {phone_number}")
+def delete_contact(contact_list, listbox, name):
+    matching_contacts = [contact for contact in contact_list if name in contact.name]
+    if matching_contacts:
+        listbox.delete(0, tk.END)
+        for contact in matching_contacts:
+            listbox.insert(tk.END, contact.print_info())
 
-def search_contact(contact_list, name, listbox):
-    found_contacts = [contact for contact in contact_list if name in contact.name]
-    listbox.delete(0, tk.END)
-    for contact in found_contacts:
-        listbox.insert(tk.END, contact.print_info())
+        selected_phone_number = simpledialog.askstring("Input", "삭제할 전화번호를 입력하세요 (취소하려면 공란으로 두세요):")
+        if selected_phone_number:
+            for i, contact in enumerate(contact_list):
+                if contact.name == name and contact.phone_number == selected_phone_number:
+                    del contact_list[i]
+                    messagebox.showinfo("Deleted", f"[삭제] 이름: {name}, 전화번호: {selected_phone_number}")
+                    refresh_listbox(contact_list, listbox)
+                    return
+            messagebox.showerror("Error", f"일치하는 연락처를 찾을 수 없습니다: {name}, 전화번호: {selected_phone_number}")
+        else:
+            refresh_listbox(contact_list, listbox)
+    else:
+        messagebox.showerror("Error", f"일치하는 연락처를 찾을 수 없습니다: {name}")
 
-def update_contact(contact_list, name):
-    for contact in contact_list:
-        if contact.name == name:
-            new_phone_number = simpledialog.askstring("Input", "새로운 전화번호:")
-            if new_phone_number:
-                for c in contact_list:
-                    if c.phone_number == new_phone_number:
-                        messagebox.showerror("Error", "이미 가입된 사용자입니다.")
+def update_contact(contact_list, listbox, name):
+    matching_contacts = [contact for contact in contact_list if name in contact.name]
+    if matching_contacts:
+        listbox.delete(0, tk.END)
+        for contact in matching_contacts:
+            listbox.insert(tk.END, contact.print_info())
+
+        selected_phone_number = simpledialog.askstring("Input", "수정할 전화번호를 입력하세요 (취소하려면 공란으로 두세요):")
+        if selected_phone_number:
+            for contact in matching_contacts:
+                if contact.phone_number == selected_phone_number:
+                    new_phone_number = simpledialog.askstring("Input", "새로운 전화번호:")
+                    if new_phone_number:
+                        for c in contact_list:
+                            if c.phone_number == new_phone_number:
+                                messagebox.showerror("Error", "이미 가입된 사용자입니다.")
+                                return
+                        contact.phone_number = new_phone_number
+                        messagebox.showinfo("Updated", "수정이 완료되었습니다.")
+                        refresh_listbox(contact_list, listbox)
                         return
-                contact.phone_number = new_phone_number
-                messagebox.showinfo("Updated", "Contact updated")
-                return
-    messagebox.showerror("Error", "가입되지 않은 사용자입니다.")
+            messagebox.showerror("Error", "일치하는 연락처를 찾을 수 없습니다.")
+        else:
+            refresh_listbox(contact_list, listbox)
+    else:
+        messagebox.showerror("Error", "일치하는 연락처를 찾을 수 없습니다.")
 
 def save_contacts(contact_list, filename="contacts.json"):
     with open(filename, "w") as file:
@@ -71,30 +91,29 @@ def on_add_contact(contact_list, listbox):
     contact = set_contact(contact_list)
     if contact:
         contact_list.append(contact)
+        contact_list.sort(key=lambda x: (x.name, x.phone_number))  # 이름을 가나다순으로 정렬 후, 동일한 이름의 경우 전화번호 오름차순으로 정렬
         refresh_listbox(contact_list, listbox)
 
 def on_delete_contact(contact_list, listbox):
     name = simpledialog.askstring("Input", "삭제할 고객명:")
     if name:
-        matching_contacts = [contact for contact in contact_list if name in contact.name]
-        if matching_contacts:
-            phone_numbers = "\n".join([contact.phone_number for contact in matching_contacts])
-            selected_phone_number = simpledialog.askstring("Input", f"{name}의 전화번호를 선택하세요:\n{phone_numbers}")
-            if selected_phone_number:
-                delete_contact(contact_list, name, selected_phone_number)
-                refresh_listbox(contact_list, listbox)
-        else:
-            messagebox.showerror("Error", f"일치하는 연락처를 찾을 수 없습니다: {name}")
+        delete_contact(contact_list, listbox, name)
 
 def on_search_contact(contact_list, listbox):
     name = simpledialog.askstring("Input", "검색할 고객명:")
     if name:
         search_contact(contact_list, name, listbox)
 
-def on_update_contact(contact_list):
-    name = simpledialog.askstring("Input", "수정할 고객명")
+def search_contact(contact_list, name, listbox):
+    found_contacts = [contact for contact in contact_list if name == contact.name]
+    listbox.delete(0, tk.END)
+    for contact in found_contacts:
+        listbox.insert(tk.END, contact.print_info())
+
+def on_update_contact(contact_list, listbox):
+    name = simpledialog.askstring("Input", "수정할 고객명:")
     if name:
-        update_contact(contact_list, name)
+        update_contact(contact_list, listbox, name)
 
 def refresh_listbox(contact_list, listbox):
     listbox.delete(0, tk.END)
@@ -130,7 +149,7 @@ def create_gui(contact_list):
     delete_button = tk.Button(button_frame, text="삭제", command=lambda: on_delete_contact(contact_list, listbox))
     delete_button.pack(fill=tk.X)
 
-    update_button = tk.Button(button_frame, text="수정", command=lambda: on_update_contact(contact_list))
+    update_button = tk.Button(button_frame, text="수정", command=lambda: on_update_contact(contact_list, listbox))
     update_button.pack(fill=tk.X)
 
     exit_button = tk.Button(button_frame, text="종료", command=lambda: on_exit(contact_list))
