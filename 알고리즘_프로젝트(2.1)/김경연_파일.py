@@ -13,8 +13,8 @@ class Contact:
 
 def binary_search(contact_list, target, key=lambda x: x.name):
     """
-    이진 탐색을 사용하여 연락처 리스트에서 타겟 이름 또는 전화번호의 위치를 찾습니다.
-    해당 요소가 존재하지 않으면 삽입 위치를 반환합니다.
+    이진 탐색을 사용하여 연락처 리스트에서 타겟 이름 또는 전화번호의 위치를 찾는다.
+    해당 요소가 존재하지 않으면 삽입 위치를 반환한다.
     """
     low, high = 0, len(contact_list) - 1
     while low <= high:
