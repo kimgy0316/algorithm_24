@@ -179,13 +179,13 @@ class ReservationSystem:
         if seat in self.selected_seats:
             self.selected_seats.remove(seat)
         else:
-            if len(self.selected_seats) < self.num_people:
+            if len(self.selected_seats) < sum(self.age_groups.values()):
                 self.selected_seats.append(seat)
             else:
                 messagebox.showerror("오류", "선택한 좌석 수가 인원 수를 초과했습니다.")
     
     def save_seat(self):
-        if len(self.selected_seats) == self.num_people:
+        if len(self.selected_seats) == sum(self.age_groups.values()):
             for seat in self.selected_seats:
                 index = self.selected_movie.seats[self.selected_time].index(seat)
                 self.selected_movie.seats[self.selected_time][index] = '■'

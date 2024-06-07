@@ -1,57 +1,79 @@
 import os
-import re  # re 모듈 가져오기
+import re
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 import datetime
+from hashlib import sha256
 
 # Contact 클래스: 연락처 정보를 저장
 class Contact:
     def __init__(self, phone_number, password, reservations=None):
         self.phone_number = phone_number
-        self.password = password
+        self.password = self.hash_password(password)
         self.reservations = reservations if reservations is not None else []
+
+    def hash_password(self, password):
+        return sha256(password.encode()).hexdigest()
 
     def print_info(self):
         return f"전화번호: {self.phone_number}, 비밀번호: {self.password}\n"
 
 # Movie 클래스: 영화 정보를 저장
 class Movie:
-    def __init__(self, title, times, theater, age_limit):
+    def __init__(self, title, times, theater, age_limit, seats=None):
         self.title = title
         self.times = times
         self.theater = theater
         self.age_limit = age_limit
+        self.seats = seats if seats is not None else {time: ["A1", "A2", "A3", "A4", "A5", "A6", "B1", "B2", "B3", "B4", "B5", "B6", "C1", "C2", "C3", "C4", "C5", "C6"] for time in times}
 
     def to_string(self):
-        return f"{self.title},{','.join(self.times)},{self.theater},{self.age_limit}"
+        times_str = ';'.join(self.times)
+        seats_str = ';'.join([f"{time}:{','.join(self.seats[time])}" for time in self.times])
+        return f"{self.title},{times_str},{self.theater},{self.age_limit},{seats_str}"
+
+    @staticmethod
+    def from_string(movie_str):
+        parts = movie_str.strip().split(',')
+        title = parts[0]
+        times = parts[1].split(';')
+        theater = parts[2]
+        age_limit = parts[3]
+        if len(parts) > 4:
+            seats = {time: seats.split(',') for time, seats in (item.split(':') for item in parts[4].split(';'))}
+        else:
+            seats = {time: ["A1", "A2", "A3", "A4", "A5", "A6", "B1", "B2", "B3", "B4", "B5", "B6", "C1", "C2", "C3", "C4", "C5", "C6"] for time in times}
+        return Movie(title, times, theater, age_limit, seats)
 
 # BookingSystem 클래스: 영화 예매 시스템의 핵심 로직
 class BookingSystem:
     def __init__(self, file_path):
         self.movies = []
         self.file_path = file_path
-        self.admin_password = "admin123"
+        self.admin_password = self.hash_password("admin123")
         self.load_movies()
-        self.sort_movies()
+
+    def hash_password(self, password):
+        return sha256(password.encode()).hexdigest()
 
     def load_movies(self):
         if os.path.exists(self.file_path):
             with open(self.file_path, "r", encoding="utf-8") as file:
                 for line in file:
-                    parts = line.strip().split(',')
-                    title = parts[0]
-                    times = parts[1].split(',')
-                    theater = parts[2]
-                    age_limit = parts[3]
-                    self.movies.append(Movie(title, times, theater, age_limit))
+                    self.movies.append(Movie.from_string(line.strip()))
 
     def save_movies(self):
         with open(self.file_path, "w", encoding="utf-8") as file:
             for movie in self.movies:
                 file.write(f"{movie.to_string()}\n")
 
-    def sort_movies(self):
-        self.movies.sort(key=lambda movie: movie.title)
+    def insert_sorted_movie(self, new_movie):
+        self.movies.append(new_movie)
+        i = len(self.movies) - 2
+        while i >= 0 and self.movies[i].title > new_movie.title:
+            self.movies[i + 1] = self.movies[i]
+            i -= 1
+        self.movies[i + 1] = new_movie
 
     def display_movies(self):
         movies_list = ""
@@ -59,27 +81,11 @@ class BookingSystem:
             movies_list += f"{idx + 1}. {movie.title} ({movie.age_limit})\n"
         return movies_list
 
-    def binary_search_movie_by_name(self, name):
-        left, right = 0, len(self.movies) - 1
+    def linear_search_movie_by_name(self, name):
         found_movies = []
-
-        while left <= right:
-            mid = (left + right) // 2
-            if name.lower() in self.movies[mid].title.lower():
-                found_movies.append(self.movies[mid])
-                l, r = mid - 1, mid + 1
-                while l >= left and name.lower() in self.movies[l].title.lower():
-                    found_movies.append(self.movies[l])
-                    l -= 1
-                while r <= right and name.lower() in self.movies[r].title.lower():
-                    found_movies.append(self.movies[r])
-                    r += 1
-                break
-            elif name.lower() < self.movies[mid].title.lower():
-                right = mid - 1
-            else:
-                left = mid + 1
-
+        for movie in self.movies:
+            if name.lower() in movie.title.lower():
+                found_movies.append(movie)
         return found_movies
 
     def edit_movie(self, idx, new_title, new_times, new_theater, new_age_limit):
@@ -88,7 +94,6 @@ class BookingSystem:
             self.movies[idx].times = new_times
             self.movies[idx].theater = new_theater
             self.movies[idx].age_limit = new_age_limit
-            self.sort_movies()
             self.save_movies()
             return True
         return False
@@ -121,7 +126,7 @@ class Application(tk.Tk):
 
     def admin_login(self):
         password = simpledialog.askstring("비밀번호", "관리자 비밀번호를 입력하세요:", show='*')
-        if password == self.booking_system.admin_password:
+        if self.booking_system.hash_password(password) == self.booking_system.admin_password:
             self.admin_panel()
         else:
             messagebox.showerror("오류", "비밀번호가 틀렸습니다")
@@ -154,7 +159,6 @@ class Application(tk.Tk):
         contact_management_button.pack(pady=5)
 
     def update_movie_list(self):
-        self.booking_system.sort_movies()
         self.movies_listbox.delete(0, tk.END)
         for movie in self.booking_system.movies:
             self.movies_listbox.insert(tk.END, movie.title)
@@ -164,8 +168,8 @@ class Application(tk.Tk):
         new_times = simpledialog.askstring("영화 추가", "새 영화 시간을 입력하세요 (쉼표로 구분):").split(',')
         new_theater = simpledialog.askstring("영화 추가", "새 영화 상영관을 입력하세요:")
         new_age_limit = simpledialog.askstring("영화 추가", "새 영화 연령 제한을 입력하세요:")
-        self.booking_system.movies.append(Movie(new_title, new_times, new_theater, new_age_limit))
-        self.booking_system.sort_movies()
+        new_movie = Movie(new_title, new_times, new_theater, new_age_limit)
+        self.booking_system.insert_sorted_movie(new_movie)
         self.booking_system.save_movies()
         self.update_movie_list()
         messagebox.showinfo("성공", "영화가 성공적으로 추가되었습니다")
@@ -184,7 +188,7 @@ class Application(tk.Tk):
         search_button.pack(pady=5)
 
     def search_movies(self, name, search_window):
-        found_movies = self.booking_system.binary_search_movie_by_name(name)
+        found_movies = self.booking_system.linear_search_movie_by_name(name)
         if found_movies:
             movies_list = "\n".join([f"{idx + 1}. {movie.title} ({movie.age_limit})" for idx, movie in enumerate(found_movies)])
             movies_label = tk.Label(search_window, text=movies_list)
@@ -365,7 +369,7 @@ def search_contact(contact_list, phone_number, listbox):
 def update_contact(contact_list, phone_number, new_password):
     for contact in contact_list:
         if contact.phone_number == phone_number:
-            contact.password = new_password
+            contact.password = sha256(new_password.encode()).hexdigest()
             messagebox.showinfo("Updated", f"[수정] 전화번호: {phone_number}, 새로운 비밀번호: {new_password}")
             return
     messagebox.showerror("Error", "일치하는 연락처를 찾을 수 없습니다.")
@@ -430,21 +434,34 @@ class UserReservationSystem:
             with open(self.movies_file, "r", encoding="utf-8") as file:
                 for line in file:
                     data = line.strip().split(',')
-                    if len(data) == 4:
+                    if len(data) == 4 or len(data) == 5:  # 변경된 부분
                         title = data[0]
                         times = data[1].split(';')
                         theater = data[2]
                         age_limit = data[3]
-                        self.movies.append(Movie(title, times, theater, age_limit))
+                        seats = {time: [
+                            'A1', 'A2', 'A3', 'A4', 'A5', 'A6',
+                            'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 
+                            'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 
+                            'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 
+                            'E1', 'E2', 'E3', 'E4', 'E5', 'E6',
+                            'F1', 'F2', 'F3', 'F4', 'F5', 'F6'
+                        ] for time in times}  # 기본 좌석 목록
+                        
+                        if len(data) == 5:  # 좌석 정보가 있는 경우
+                            seat_data = data[4].split(';')
+                            for seat_info in seat_data:
+                                time, seats_str = seat_info.split(':')
+                                seats[time] = seats_str.split(',')
+                        self.movies.append(Movie(title, times, theater, age_limit, seats))
                     else:
                         print(f"Invalid line format: {line.strip()}")
-    
+
     def save_movies(self):
         with open(self.movies_file, "w", encoding="utf-8") as file:
             for movie in self.movies:
-                times = ';'.join(movie.times)
-                file.write(f"{movie.title},{times},{movie.theater},{movie.age_limit}\n")
-    
+                file.write(f"{movie.to_string()}\n")
+
     def load_reservations(self):
         if os.path.exists(self.reservations_file):
             with open(self.reservations_file, "r", encoding="utf-8") as file:
@@ -456,79 +473,80 @@ class UserReservationSystem:
                         reservations_str = data[2]
                         reservations_list = eval(reservations_str)
                         self.reservations[phone_number] = {"password": password, "reservations": reservations_list}
-    
+
     def save_reservations(self):
         with open(self.reservations_file, "w", encoding="utf-8") as file:
             for phone_number, info in self.reservations.items():
                 password = info["password"]
                 reservations_str = repr(info["reservations"])
                 file.write(f"{phone_number}|{password}|{reservations_str}\n")
-    
+
     def login_frame(self):
         self.clear_frame()
         ttk.Label(self.main_frame, text="영화 예매 시스템에 오신 것을 환영합니다").grid(row=0, column=0, columnspan=2, pady=10)
-        
+
         ttk.Label(self.main_frame, text="전화번호를 입력하세요 (예: 010-1234-5678):").grid(row=1, column=0, sticky='e')
         self.phone_entry = ttk.Entry(self.main_frame)
         self.phone_entry.grid(row=1, column=1)
-        
+
         ttk.Label(self.main_frame, text="비밀번호를 입력하세요:").grid(row=2, column=0, sticky='e')
         self.password_entry = ttk.Entry(self.main_frame, show="*")
         self.password_entry.grid(row=2, column=1)
-        
+
         login_button = ttk.Button(self.main_frame, text="로그인", command=self.login)
         login_button.grid(row=3, column=0, columnspan=2, pady=10)
-        
+
         register_button = ttk.Button(self.main_frame, text="회원가입", command=self.register_frame)
         register_button.grid(row=4, column=0, columnspan=2, pady=10)
-    
+
     def register_frame(self):
         self.clear_frame()
         ttk.Label(self.main_frame, text="회원가입").grid(row=0, column=0, columnspan=2, pady=10)
-        
+
         ttk.Label(self.main_frame, text="전화번호를 입력하세요 (예: 010-1234-5678):").grid(row=1, column=0, sticky='e')
         self.register_phone_entry = ttk.Entry(self.main_frame)
         self.register_phone_entry.grid(row=1, column=1)
-        
+
         ttk.Label(self.main_frame, text="비밀번호를 입력하세요:").grid(row=2, column=0, sticky='e')
         self.register_password_entry = ttk.Entry(self.main_frame, show="*")
         self.register_password_entry.grid(row=2, column=1)
-        
+
         ttk.Label(self.main_frame, text="비밀번호를 다시 입력하세요:").grid(row=3, column=0, sticky='e')
         self.register_confirm_password_entry = ttk.Entry(self.main_frame, show="*")
         self.register_confirm_password_entry.grid(row=3, column=1)
-        
+
         register_button = ttk.Button(self.main_frame, text="가입", command=self.register)
         register_button.grid(row=4, column=0, columnspan=2, pady=10)
-    
+
     def register(self):
         phone_number = self.register_phone_entry.get()
         password = self.register_password_entry.get()
         confirm_password = self.register_confirm_password_entry.get()
-        
+
         if not re.match(r"010-\d{4}-\d{4}$", phone_number):
             messagebox.showerror("오류", "전화번호 형식이 올바르지 않습니다. 다시 입력하세요.")
             return
-        
+
         if password != confirm_password:
             messagebox.showerror("오류", "비밀번호가 일치하지 않습니다. 다시 입력하세요.")
             return
-        
+
         if phone_number in self.reservations:
             messagebox.showerror("오류", "이미 가입된 전화번호입니다.")
             return
-        
-        self.reservations[phone_number] = {"password": password, "reservations": []}
+
+        self.reservations[phone_number] = {"password": sha256(password.encode()).hexdigest(), "reservations": []}
         self.save_reservations()
         messagebox.showinfo("가입 완료", "회원가입이 완료되었습니다.")
         self.login_frame()
-    
+
     def login(self):
         phone_number = self.phone_entry.get()
         password = self.password_entry.get()
+        hashed_password = sha256(password.encode()).hexdigest()
         if re.match(r"010-\d{4}-\d{4}$", phone_number):
             if phone_number in self.reservations:  # 회원 목록에 있는 번호인지 확인
-                if self.reservations[phone_number]["password"] == password:
+                if self.reservations[phone_number]["password"] == hashed_password:
                     self.current_phone_number = phone_number
                     self.main_menu()
                 else:
@@ -537,32 +555,32 @@ class UserReservationSystem:
                 messagebox.showerror("오류", "가입되지 않은 전화번호입니다.")
         else:
             messagebox.showerror("오류", "전화번호 형식이 올바르지 않습니다. 다시 입력하세요.")
-    
+
     def main_menu(self):
         self.clear_frame()
         ttk.Label(self.main_frame, text=f"{self.current_phone_number}으로 로그인되었습니다.").grid(row=0, column=0, columnspan=2, pady=10)
-        
+
         reserve_button = ttk.Button(self.main_frame, text="1. 영화 예매", command=self.make_reservation)
         reserve_button.grid(row=1, column=0, columnspan=2, pady=10)
-        
+
         view_button = ttk.Button(self.main_frame, text="2. 예매 내역 조회", command=self.view_reservations)
         view_button.grid(row=2, column=0, columnspan=2, pady=10)
-        
+
         logout_button = ttk.Button(self.main_frame, text="3. 로그아웃", command=self.login_frame)
         logout_button.grid(row=3, column=0, columnspan=2, pady=10)
-    
+
     def make_reservation(self):
         self.clear_frame()
         ttk.Label(self.main_frame, text="영화를 선택하세요:").grid(row=0, column=0, columnspan=2, pady=10)
-        
+
         self.movie_listbox = tk.Listbox(self.main_frame)
         for movie in self.movies:
             self.movie_listbox.insert(tk.END, f"{movie.title} (연령 제한: {movie.age_limit})")
         self.movie_listbox.grid(row=1, column=0, columnspan=2, pady=10)
-        
+
         select_button = ttk.Button(self.main_frame, text="선택", command=self.select_movie)
         select_button.grid(row=2, column=0, columnspan=2, pady=10)
-    
+
     def select_movie(self):
         try:
             index = self.movie_listbox.curselection()[0]
@@ -570,31 +588,31 @@ class UserReservationSystem:
             self.select_age_groups()
         except IndexError:
             messagebox.showerror("오류", "영화를 선택하세요.")
-    
+
     def select_age_groups(self):
         self.clear_frame()
         ttk.Label(self.main_frame, text="연령대별 인원수를 선택하세요:").grid(row=0, column=0, columnspan=2, pady=10)
-        
+
         ttk.Label(self.main_frame, text="성인 (19세 이상):").grid(row=1, column=0, pady=5)
         self.adult_spinbox = ttk.Spinbox(self.main_frame, from_=0, to=10)
         self.adult_spinbox.grid(row=1, column=1, pady=5)
-        
+
         ttk.Label(self.main_frame, text="청소년 (13-18세):").grid(row=2, column=0, pady=5)
         self.teen_spinbox = ttk.Spinbox(self.main_frame, from_=0, to=10)
         self.teen_spinbox.grid(row=2, column=1, pady=5)
-        
+
         ttk.Label(self.main_frame, text="어린이 (12세 이하):").grid(row=3, column=0, pady=5)
         self.child_spinbox = ttk.Spinbox(self.main_frame, from_=0, to=10)
         self.child_spinbox.grid(row=3, column=1, pady=5)
-        
+
         next_button = ttk.Button(self.main_frame, text="다음", command=self.check_age_groups)
         next_button.grid(row=4, column=0, columnspan=2, pady=10)
-    
+
     def check_age_groups(self):
         adults = int(self.adult_spinbox.get())
         teens = int(self.teen_spinbox.get())
         children = int(self.child_spinbox.get())
-        
+
         if self.selected_movie.age_limit == "ALL":
             self.age_groups = {'성인': adults, '청소년': teens, '어린이': children}
             self.select_date()
@@ -607,28 +625,28 @@ class UserReservationSystem:
         else:
             messagebox.showerror("오류", f"해당 영화는 {self.selected_movie.age_limit} 관람가입니다. 연령대가 맞지 않습니다.")
             self.main_menu()
-    
+
     def select_date(self):
         self.clear_frame()
         today = datetime.datetime.today()
         self.selected_date = today.strftime('%Y-%m-%d')
         ttk.Label(self.main_frame, text=f"오늘 날짜로 예약됩니다: {self.selected_date}").grid(row=0, column=0, columnspan=2, pady=10)
-        
+
         next_button = ttk.Button(self.main_frame, text="다음", command=self.select_time)
         next_button.grid(row=1, column=0, columnspan=2, pady=10)
-    
+
     def select_time(self):
         self.clear_frame()
         ttk.Label(self.main_frame, text=f"{self.selected_movie.title}의 가능한 상영 시간:").grid(row=0, column=0, columnspan=2, pady=10)
-        
+
         self.time_listbox = tk.Listbox(self.main_frame)
         for time in self.selected_movie.times:
             self.time_listbox.insert(tk.END, time)
         self.time_listbox.grid(row=1, column=0, columnspan=2, pady=10)
-        
+
         select_button = ttk.Button(self.main_frame, text="선택", command=self.save_time)
         select_button.grid(row=2, column=0, columnspan=2, pady=10)
-    
+
     def save_time(self):
         try:
             index = self.time_listbox.curselection()[0]
@@ -636,25 +654,27 @@ class UserReservationSystem:
             self.select_seat()
         except IndexError:
             messagebox.showerror("오류", "상영 시간을 선택하세요.")
-    
+
     def select_seat(self):
         self.clear_frame()
         ttk.Label(self.main_frame, text=f"{self.selected_movie.title}의 {self.selected_time} 상영 시간의 가능한 좌석:").grid(row=0, column=0, columnspan=6, pady=10)
-        
+
         ttk.Label(self.main_frame, text="스크린").grid(row=1, column=0, columnspan=6, pady=5)
 
         self.seat_buttons = []
+        self.selected_seats = []  # 초기화 위치를 수정합니다.
         for i, seat in enumerate(self.selected_movie.seats[self.selected_time]):
             row = i // 6
             col = i % 6
             seat_button = ttk.Checkbutton(self.main_frame, text=seat, command=lambda s=seat: self.toggle_seat(s))
             seat_button.grid(row=row+2, column=col, padx=5, pady=5)
             self.seat_buttons.append(seat_button)
-        
-        self.selected_seats = []
+            if seat == '■':  # 이미 예약된 좌석은 비활성화
+                seat_button.state(['disabled'])
+
         select_button = ttk.Button(self.main_frame, text="선택 완료", command=self.save_seat)
         select_button.grid(row=8, column=0, columnspan=6, pady=10)
-    
+
     def toggle_seat(self, seat):
         if seat in self.selected_seats:
             self.selected_seats.remove(seat)
@@ -663,25 +683,26 @@ class UserReservationSystem:
                 self.selected_seats.append(seat)
             else:
                 messagebox.showerror("오류", "선택한 좌석 수가 인원 수를 초과했습니다.")
-    
+
     def save_seat(self):
         if len(self.selected_seats) == sum(self.age_groups.values()):
             for seat in self.selected_seats:
                 index = self.selected_movie.seats[self.selected_time].index(seat)
                 self.selected_movie.seats[self.selected_time][index] = '■'
+            self.save_movies()  # 변경된 좌석 정보를 저장
             self.confirm_reservation()
         else:
             messagebox.showerror("오류", "선택한 좌석 수가 인원 수와 맞지 않습니다.")
-    
+
     def confirm_reservation(self):
         self.clear_frame()
-        
+
         total_cost = (
             self.age_groups['성인'] * self.ticket_prices['성인'] +
             self.age_groups['청소년'] * self.ticket_prices['청소년'] +
             self.age_groups['어린이'] * self.ticket_prices['어린이']
         )
-        
+
         reservation_info = {
             "영화": self.selected_movie.title,
             "날짜": self.selected_date,
@@ -690,10 +711,10 @@ class UserReservationSystem:
             "연령대": self.age_groups,
             "총액": total_cost
         }
-        
+
         self.reservations[self.current_phone_number]["reservations"].append(reservation_info)
         self.save_reservations()
-        
+
         age_groups_str = ", ".join([f"{k} {v}명" for k, v in self.age_groups.items() if v > 0])
         reservation_details = (
             f"영화: {self.selected_movie.title}\n"
@@ -703,31 +724,31 @@ class UserReservationSystem:
             f"연령대: {age_groups_str}\n"
             f"총액: {total_cost}원"
         )
-        
+
         ttk.Label(self.main_frame, text="예약 정보:").grid(row=0, column=0, columnspan=2, pady=10)
         ttk.Label(self.main_frame, text=reservation_details).grid(row=1, column=0, columnspan=2, pady=10)
-        
+
         pay_card_button = ttk.Button(self.main_frame, text="결제 (카드)", command=lambda: self.complete_payment("카드"))
         pay_card_button.grid(row=2, column=0, pady=10)
-        
+
         pay_cash_button = ttk.Button(self.main_frame, text="결제 (현금)", command=lambda: self.complete_payment("현금"))
         pay_cash_button.grid(row=2, column=1, pady=10)
-        
+
         cancel_button = ttk.Button(self.main_frame, text="취소", command=self.cancel_reservation)
         cancel_button.grid(row=3, column=0, columnspan=2, pady=10)
-    
+
     def complete_payment(self, method):
         self.reservations[self.current_phone_number]["reservations"][-1]["결제 방법"] = method
         self.save_reservations()
         messagebox.showinfo("결제 완료", f"결제가 완료되었습니다! ({method})")
         self.main_menu()
-    
+
     def cancel_reservation(self):
         self.reservations[self.current_phone_number]["reservations"].pop()
         self.save_reservations()
         messagebox.showinfo("예약 취소", "예약이 취소되었습니다.")
         self.main_menu()
-    
+
     def view_reservations(self):
         self.clear_frame()
         if not self.reservations[self.current_phone_number]["reservations"]:
@@ -745,10 +766,10 @@ class UserReservationSystem:
                     f"결제 방법: {reservation.get('결제 방법', 'N/A')}\n"
                 )
                 ttk.Label(self.main_frame, text=reservation_details).grid(row=i, column=0, pady=10)
-        
+
         back_button = ttk.Button(self.main_frame, text="뒤로", command=self.main_menu)
         back_button.grid(row=1, column=0, pady=10)
-    
+
     def clear_frame(self):
         for widget in self.main_frame.winfo_children():
             widget.destroy()
