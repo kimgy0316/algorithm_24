@@ -35,30 +35,13 @@ def search_contact(contact_list, name, listbox):
     for contact in found_contacts:
         listbox.insert(tk.END, contact.print_info())
 
-def update_contact(contact_list, name, listbox):
-    matching_contacts = sorted([contact for contact in contact_list if name in contact.name], key=lambda x: (x.name, x.phone_number))
-    if matching_contacts:
-        root = tk.Tk()
-        root.title(f"{name}의 연락처 수정")
-        label = tk.Label(root, text=f"{name}의 연락처 목록:")
-        label.pack()
-        for contact in matching_contacts:
-            label = tk.Label(root, text=contact.print_info())
-            label.pack()
-            entry = tk.Entry(root)
-            entry.pack()
-            entry.insert(tk.END, contact.phone_number)
-        button = tk.Button(root, text="수정", command=lambda: update_phone_number(root, matching_contacts, entry, contact_list, listbox))
-        button.pack()
-    else:
-        messagebox.showerror("Error", "일치하는 연락처를 찾을 수 없습니다.")
-
-def update_phone_number(root, matching_contacts, entry, contact_list, listbox):
-    new_phone_number = entry.get()
-    root.destroy()
-    for contact in matching_contacts:
-        contact.phone_number = new_phone_number
-    refresh_listbox(contact_list, listbox)
+def update_contact(contact_list, name, phone_number, new_phone_number):
+    for contact in contact_list:
+        if contact.name == name and contact.phone_number == phone_number:
+            contact.phone_number = new_phone_number
+            messagebox.showinfo("Updated", f"[수정] 이름: {name}, 새로운 전화번호: {new_phone_number}")
+            return
+    messagebox.showerror("Error", "일치하는 연락처를 찾을 수 없습니다.")
 
 def save_contacts(contact_list, filename=r"C:\Users\LG\Desktop\phone_number.txt"):
     with open(filename, "w") as file:
@@ -67,15 +50,15 @@ def save_contacts(contact_list, filename=r"C:\Users\LG\Desktop\phone_number.txt"
 
 def load_contacts(contact_list, listbox, filename=r"C:\Users\LG\Desktop\phone_number.txt"):
     if os.path.exists(filename):
-        with open(filename, "r", encoding="utf-8") as file:  # 인코딩을 utf-8로 지정
+        with open(filename, "r", encoding="utf-8") as file:
             try:
                 lines = file.readlines()
-                contact_list.clear()  # 기존 연락처 리스트 초기화
+                contact_list.clear()
                 for line in lines:
-                    name, phone_number = line.strip().split(',')  # 쉼표로 구분하여 이름과 전화번호 추출
+                    name, phone_number = line.strip().split(',')
                     contact_list.append(Contact(name, phone_number))
-                contact_list.sort(key=lambda x: (x.name, x.phone_number))  # 이름을 가나다순으로 정렬 후, 동일한 이름의 경우 전화번호 오름차순으로 정렬
-                refresh_listbox(contact_list, listbox)  # 리스트박스 업데이트
+                contact_list.sort(key=lambda x: (x.name, x.phone_number))
+                refresh_listbox(contact_list, listbox)
             except Exception as e:
                 messagebox.showerror("Error", f"연락처 파일을 읽는 도중 오류가 발생했습니다: {e}")
     else:
@@ -90,7 +73,14 @@ def on_add_contact(contact_list, listbox):
 def on_delete_contact(contact_list, listbox):
     name = simpledialog.askstring("Input", "삭제할 고객명:")
     if name:
-        search_contact(contact_list, name, listbox)
+        matching_contacts = [contact for contact in contact_list if contact.name == name]
+        if matching_contacts:
+            phone_number = simpledialog.askstring("Input", "삭제할 전화번호:")
+            if phone_number:
+                delete_contact(contact_list, name, phone_number)
+                refresh_listbox(contact_list, listbox)
+        else:
+            messagebox.showerror("Error", "일치하는 연락처를 찾을 수 없습니다.")
 
 def on_search_contact(contact_list, listbox):
     name = simpledialog.askstring("Input", "검색할 고객명:")
@@ -100,7 +90,15 @@ def on_search_contact(contact_list, listbox):
 def on_update_contact(contact_list, listbox):
     name = simpledialog.askstring("Input", "수정할 고객명:")
     if name:
-        update_contact(contact_list, name, listbox)
+        matching_contacts = [contact for contact in contact_list if contact.name == name]
+        if matching_contacts:
+            phone_number = simpledialog.askstring("Input", "현재 전화번호:")
+            new_phone_number = simpledialog.askstring("Input", "새로운 전화번호:")
+            if phone_number and new_phone_number:
+                update_contact(contact_list, name, phone_number, new_phone_number)
+                refresh_listbox(contact_list, listbox)
+        else:
+            messagebox.showerror("Error", "일치하는 연락처를 찾을 수 없습니다.")
 
 def refresh_listbox(contact_list, listbox):
     listbox.delete(0, tk.END)
@@ -149,7 +147,8 @@ def create_gui(contact_list):
 
     load_contacts(contact_list, listbox)
 
+    root.mainloop()
+
 if __name__ == "__main__":
     contact_list = []
     create_gui(contact_list)
-

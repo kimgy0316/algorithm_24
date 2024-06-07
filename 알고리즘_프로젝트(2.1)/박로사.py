@@ -254,4 +254,3 @@ file_path = r"C:\Users\LG\Desktop\movies.txt"  # 영화 정보를 저장할 파�
 booking_system = BookingSystem(file_path)  # BookingSystem 인스턴스 생성
 app = Application(booking_system)  # Application 인스턴스 생성
 app.mainloop()  # Tkinter 메인 루프 실행
-
