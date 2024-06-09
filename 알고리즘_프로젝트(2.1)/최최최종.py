@@ -9,6 +9,7 @@ from hashlib import sha256
 class Contact:
     def __init__(self, phone_number, password, reservations=None):
         self.phone_number = phone_number
+        self.password_plain = password
         self.password = self.hash_password(password)
         self.reservations = reservations if reservations is not None else []
 
@@ -16,7 +17,7 @@ class Contact:
         return sha256(password.encode()).hexdigest()
 
     def print_info(self):
-        return f"전화번호: {self.phone_number}, 비밀번호: {self.password}\n"
+        return f"전화번호: {self.phone_number}, 비밀번호: {self.password_plain}\n"
 
 # Movie 클래스: 영화 정보를 저장
 class Movie:
@@ -25,7 +26,15 @@ class Movie:
         self.times = times
         self.theater = theater
         self.age_limit = age_limit
-        self.seats = seats if seats is not None else {time: ["A1", "A2", "A3", "A4", "A5", "A6", "B1", "B2", "B3", "B4", "B5", "B6", "C1", "C2", "C3", "C4", "C5", "C6"] for time in times}
+        self.seats = {time: [
+            'A1', 'A2', 'A3', 'A4', 'A5', 'A6',
+            'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 
+            'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 
+            'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 
+            'E1', 'E2', 'E3', 'E4', 'E5', 'E6',
+            'F1', 'F2', 'F3', 'F4', 'F5', 'F6'
+        ] for time in times}
+
 
     def to_string(self):
         times_str = ';'.join(self.times)
@@ -378,7 +387,7 @@ def save_contacts(contact_list, filename=r"C:\Users\LG\Desktop\reservations.txt"
     with open(filename, "w", encoding="utf-8") as file:
         for contact in contact_list:
             reservations = str(contact.reservations)
-            file.write(f"{contact.phone_number}|{contact.password}|{reservations}\n")
+            file.write(f"{contact.phone_number}|{contact.password_plain}|{contact.password_hashed}|{reservations}\n")
 
 def load_contacts(contact_list, listbox, filename=r"C:\Users\LG\Desktop\reservations.txt"):
     if os.path.exists(filename):
@@ -390,9 +399,10 @@ def load_contacts(contact_list, listbox, filename=r"C:\Users\LG\Desktop\reservat
                     parts = line.strip().split('|')
                     if len(parts) == 3:
                         phone_number = parts[0]
-                        password = parts[1]
-                        reservations = eval(parts[2])  # eval 사용 주의
-                        contact_list.append(Contact(phone_number, password, reservations))
+                        password_plain = parts[1]
+                        password_hashed = parts[2]  # eval 사용 주의
+                        reservations = eval(parts[3])
+                        contact_list.append(Contact(phone_number, password_plain, reservations))
                 contact_list.sort(key=lambda x: x.phone_number)
                 listbox.delete(0, tk.END)
                 for contact in contact_list:
@@ -439,15 +449,7 @@ class UserReservationSystem:
                         times = data[1].split(';')
                         theater = data[2]
                         age_limit = data[3]
-                        seats = {time: [
-                            'A1', 'A2', 'A3', 'A4', 'A5', 'A6',
-                            'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 
-                            'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 
-                            'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 
-                            'E1', 'E2', 'E3', 'E4', 'E5', 'E6',
-                            'F1', 'F2', 'F3', 'F4', 'F5', 'F6'
-                        ] for time in times}  # 기본 좌석 목록
-                        
+                        seats = {time: ["A1", "A2", "A3", "A4", "A5", "A6", "B1", "B2", "B3", "B4", "B5", "B6"] for time in times}  # 기본 좌석 목록
                         if len(data) == 5:  # 좌석 정보가 있는 경우
                             seat_data = data[4].split(';')
                             for seat_info in seat_data:
@@ -662,16 +664,14 @@ class UserReservationSystem:
         ttk.Label(self.main_frame, text="스크린").grid(row=1, column=0, columnspan=6, pady=5)
 
         self.seat_buttons = []
-        self.selected_seats = []  # 초기화 위치를 수정합니다.
         for i, seat in enumerate(self.selected_movie.seats[self.selected_time]):
             row = i // 6
             col = i % 6
             seat_button = ttk.Checkbutton(self.main_frame, text=seat, command=lambda s=seat: self.toggle_seat(s))
             seat_button.grid(row=row+2, column=col, padx=5, pady=5)
             self.seat_buttons.append(seat_button)
-            if seat == '■':  # 이미 예약된 좌석은 비활성화
-                seat_button.state(['disabled'])
 
+        self.selected_seats = []
         select_button = ttk.Button(self.main_frame, text="선택 완료", command=self.save_seat)
         select_button.grid(row=8, column=0, columnspan=6, pady=10)
 
@@ -687,9 +687,12 @@ class UserReservationSystem:
     def save_seat(self):
         if len(self.selected_seats) == sum(self.age_groups.values()):
             for seat in self.selected_seats:
-                index = self.selected_movie.seats[self.selected_time].index(seat)
-                self.selected_movie.seats[self.selected_time][index] = '■'
-            self.save_movies()  # 변경된 좌석 정보를 저장
+                # 좌석 상태를 '■'로 변경
+                for time in self.selected_movie.times:
+                    if time == self.selected_time:
+                        self.selected_movie.seats[time] = [
+                            '■' if s == seat else s for s in self.selected_movie.seats[time]
+                        ]
             self.confirm_reservation()
         else:
             messagebox.showerror("오류", "선택한 좌석 수가 인원 수와 맞지 않습니다.")
