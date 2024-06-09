@@ -35,7 +35,6 @@ class Movie:
             'F1', 'F2', 'F3', 'F4', 'F5', 'F6'
         ] for time in times}
 
-
     def to_string(self):
         times_str = ';'.join(self.times)
         seats_str = ';'.join([f"{time}:{','.join(self.seats[time])}" for time in self.times])
@@ -59,17 +58,31 @@ class BookingSystem:
     def __init__(self, file_path):
         self.movies = []
         self.file_path = file_path
+        self.reservations_file = reservations_file
+        self.reservations = []
         self.admin_password = self.hash_password("admin123")
         self.load_movies()
+        self.load_reservations()
+        self.sort_movies()
 
     def hash_password(self, password):
         return sha256(password.encode()).hexdigest()
 
-    def load_movies(self):
-        if os.path.exists(self.file_path):
-            with open(self.file_path, "r", encoding="utf-8") as file:
+    def load_reservations(self):
+        if os.path.exists(self.reservations_file):
+            with open(self.reservations_file, "r", encoding="utf-8") as file:
                 for line in file:
-                    self.movies.append(Movie.from_string(line.strip()))
+                    parts = line.strip().split('|')
+                    movie_title = parts[0]
+                    reservation_time = parts[1]
+                    seats = parts[2].split(',')
+                    self.reservations.append((movie_title, reservation_time, seats))
+
+    def save_reservations(self):
+            with open(self.reservations_file, "w", encoding="utf-8") as file:
+                for reservation in self.reservations:
+                    movie_title, reservation_time, seats = reservation
+                    file.write(f"{movie_title}|{reservation_time}|{','.join(seats)}\n")
 
     def save_movies(self):
         with open(self.file_path, "w", encoding="utf-8") as file:
@@ -132,6 +145,34 @@ class Application(tk.Tk):
 
         self.user_register_button = tk.Button(self, text="회원가입", command=self.register_user)
         self.user_register_button.pack(pady=10)
+
+    def get_reserved_seats(self, movie_title, reservation_time):
+            reserved_seats = []
+            for reservation in self.booking_system.reservations:
+                if reservation[0] == movie_title and reservation[1] == reservation_time:
+                    reserved_seats.extend(reservation[2])
+            return reserved_seats
+    
+    def select_seat(self):
+            self.clear_frame()
+            ttk.Label(self.main_frame, text=f"{self.selected_movie.title}의 {self.selected_time} 상영 시간의 가능한 좌석:").grid(row=0, column=0, columnspan=6, pady=10)
+
+            ttk.Label(self.main_frame, text="스크린").grid(row=1, column=0, columnspan=6, pady=5)
+
+            reserved_seats = self.get_reserved_seats(self.selected_movie.title, self.selected_time)
+            self.seat_buttons = []
+            self.selected_seats = []
+
+            for i, seat in enumerate(self.selected_movie.seats[self.selected_time]):
+                row = i // 6
+                col = i % 6
+                state = tk.DISABLED if seat in reserved_seats else tk.NORMAL
+                seat_button = ttk.Checkbutton(self.main_frame, text=seat, state=state, command=lambda s=seat: self.toggle_seat(s))
+                seat_button.grid(row=row + 2, column=col, padx=5, pady=5)
+                self.seat_buttons.append(seat_button)
+
+            select_button = ttk.Button(self.main_frame, text="선택 완료", command=self.save_seat)
+            select_button.grid(row=8, column=0, columnspan=6, pady=10)
 
     def admin_login(self):
         password = simpledialog.askstring("비밀번호", "관리자 비밀번호를 입력하세요:", show='*')
@@ -322,10 +363,11 @@ class Application(tk.Tk):
                 update_contact(self.contact_list, phone_number, new_password)
                 self.refresh_listbox(self.contact_listbox)
 
-    def refresh_listbox(self, listbox):
+    def refresh_listbox(contact_list, listbox):
         listbox.delete(0, tk.END)
-        for contact in self.contact_list:
+        for contact in contact_list:
             listbox.insert(tk.END, contact.print_info())
+
 
     def on_exit(self):
         save_contacts(self.contact_list)
@@ -399,10 +441,9 @@ def load_contacts(contact_list, listbox, filename=r"C:\Users\LG\Desktop\reservat
                     parts = line.strip().split('|')
                     if len(parts) == 3:
                         phone_number = parts[0]
-                        password_plain = parts[1]
-                        password_hashed = parts[2]  # eval 사용 주의
-                        reservations = eval(parts[3])
-                        contact_list.append(Contact(phone_number, password_plain, reservations))
+                        password = parts[1]
+                        reservations = eval(parts[2])
+                        contact_list.append(Contact(phone_number, password, reservations))
                 contact_list.sort(key=lambda x: x.phone_number)
                 listbox.delete(0, tk.END)
                 for contact in contact_list:
