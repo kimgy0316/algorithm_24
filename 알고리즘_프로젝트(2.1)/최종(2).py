@@ -462,68 +462,48 @@ class Application(tk.Tk):
         ttk.Label(self.main_frame, text="스크린").grid(row=1, column=0, columnspan=6, pady=5)
 
         self.seat_buttons = []
+        self.selected_seats = []
         for i, seat in enumerate(self.selected_movie.seats[self.selected_time]):
             row = i // 6
             col = i % 6
-            seat_button = ttk.Checkbutton(self.main_frame, text=seat, command=lambda s=seat: self.toggle_seat(s))
+            state = tk.NORMAL
+            if seat == '■':
+                state = tk.DISABLED
+            seat_button = tk.Checkbutton(self.main_frame, text=seat, state=state, command=lambda s=seat: self.toggle_seat(s))
             seat_button.grid(row=row+2, column=col, padx=5, pady=5)
             self.seat_buttons.append(seat_button)
         
-        self.selected_seats = []
-        ttk.Button(self.main_frame, text="선택 완료", command=self.save_seat).grid(row=8, column=0, columnspan=6, pady=10)
+        ttk.Button(self.main_frame, text="선택 완료", command=self.confirm_seat_selection).grid(row=8, column=0, columnspan=6, pady=10)
     
     def toggle_seat(self, seat):
         if seat in self.selected_seats:
             self.selected_seats.remove(seat)
         else:
-            if len(self.selected_seats) < sum(self.age_groups.values()):
-                self.selected_seats.append(seat)
-            else:
-                messagebox.showerror("오류", "선택한 좌석 수가 인원 수를 초과했습니다.")
+            self.selected_seats.append(seat)
 
-    def save_seat(self):
-        if len(self.selected_seats) == sum(self.age_groups.values()):
+    def confirm_seat_selection(self):
+        if len(self.selected_seats) > 0:
             for seat in self.selected_seats:
                 index = self.selected_movie.seats[self.selected_time].index(seat)
                 self.selected_movie.seats[self.selected_time][index] = '■'
             self.confirm_reservation()
         else:
-            messagebox.showerror("오류", "선택한 좌석 수가 인원 수와 맞지 않습니다.")
-    
+            messagebox.showerror("오류", "최소 하나의 좌석을 선택해야 합니다.")
+
     def confirm_reservation(self):
         for widget in self.main_frame.winfo_children():
             widget.destroy()
         self.main_frame.grid(row=0, column=0, padx=10, pady=10)
         
-        total_cost = (
-            self.age_groups['성인'] * 18000 +
-            self.age_groups['청소년'] * 15000 +
-            self.age_groups['어린이'] * 9000
-        )
+        self.selected_date = datetime.datetime.today().strftime('%Y-%m-%d')
+        ttk.Label(self.main_frame, text=f"{self.selected_movie.title} 예약 정보").grid(row=0, column=0, columnspan=2, pady=10)
         
-        reservation_info = {
-            "영화": self.selected_movie.title,
-            "날짜": self.selected_date,
-            "시간": self.selected_time,
-            "좌석": self.selected_seats,
-            "연령대": self.age_groups,
-            "총액": total_cost
-        }
-        
-        self.current_user.reservations.append(reservation_info)
-        self.save_contacts_to_file()
-        
-        age_groups_str = ", ".join([f"{k} {v}명" for k, v in self.age_groups.items() if v > 0])
         reservation_details = (
             f"영화: {self.selected_movie.title}\n"
             f"날짜: {self.selected_date}\n"
             f"시간: {self.selected_time}\n"
-            f"좌석: {', '.join(self.selected_seats)}\n"
-            f"연령대: {age_groups_str}\n"
-            f"총액: {total_cost}원"
+            f"좌석: {', '.join(self.selected_seats)}"
         )
-        
-        ttk.Label(self.main_frame, text="예약 정보:").grid(row=0, column=0, columnspan=2, pady=10)
         ttk.Label(self.main_frame, text=reservation_details).grid(row=1, column=0, columnspan=2, pady=10)
         
         ttk.Button(self.main_frame, text="결제 (카드)", command=lambda: self.complete_payment("카드")).grid(row=2, column=0, pady=10)
@@ -531,14 +511,18 @@ class Application(tk.Tk):
         ttk.Button(self.main_frame, text="취소", command=self.cancel_reservation).grid(row=3, column=0, columnspan=2, pady=10)
     
     def complete_payment(self, method):
-        self.current_user.reservations[-1]["결제 방법"] = method
+        self.current_user.reservations.append({
+            "영화": self.selected_movie.title,
+            "날짜": self.selected_date,
+            "시간": self.selected_time,
+            "좌석": self.selected_seats,
+            "결제 방법": method
+        })
         self.save_contacts_to_file()
         messagebox.showinfo("결제 완료", f"결제가 완료되었습니다! ({method})")
         self.user_main_menu()
     
     def cancel_reservation(self):
-        self.current_user.reservations.pop()
-        self.save_contacts_to_file()
         messagebox.showinfo("예약 취소", "예약이 취소되었습니다.")
         self.user_main_menu()
     
@@ -551,15 +535,12 @@ class Application(tk.Tk):
             ttk.Label(self.main_frame, text="예매 내역이 없습니다.").grid(row=0, column=0, pady=10)
         else:
             for i, reservation in enumerate(self.current_user.reservations):
-                age_groups_str = ", ".join([f"{k} {v}명" for k, v in reservation['연령대'].items() if v > 0])
                 reservation_details = (
                     f"{i+1}. 영화: {reservation['영화']}\n"
                     f"날짜: {reservation['날짜']}\n"
                     f"시간: {reservation['시간']}\n"
                     f"좌석: {', '.join(reservation['좌석'])}\n"
-                    f"연령대: {age_groups_str}\n"
-                    f"총액: {reservation['총액']}원\n"
-                    f"결제 방법: {reservation.get('결제 방법', 'N/A')}\n"
+                    f"결제 방법: {reservation['결제 방법']}"
                 )
                 ttk.Label(self.main_frame, text=reservation_details).grid(row=i, column=0, pady=10)
         
