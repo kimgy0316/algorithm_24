@@ -58,31 +58,17 @@ class BookingSystem:
     def __init__(self, file_path):
         self.movies = []
         self.file_path = file_path
-        self.reservations_file = reservations_file
-        self.reservations = []
         self.admin_password = self.hash_password("admin123")
         self.load_movies()
-        self.load_reservations()
-        self.sort_movies()
 
     def hash_password(self, password):
         return sha256(password.encode()).hexdigest()
 
-    def load_reservations(self):
-        if os.path.exists(self.reservations_file):
-            with open(self.reservations_file, "r", encoding="utf-8") as file:
+    def load_movies(self):
+        if os.path.exists(self.file_path):
+            with open(self.file_path, "r", encoding="utf-8") as file:
                 for line in file:
-                    parts = line.strip().split('|')
-                    movie_title = parts[0]
-                    reservation_time = parts[1]
-                    seats = parts[2].split(',')
-                    self.reservations.append((movie_title, reservation_time, seats))
-
-    def save_reservations(self):
-            with open(self.reservations_file, "w", encoding="utf-8") as file:
-                for reservation in self.reservations:
-                    movie_title, reservation_time, seats = reservation
-                    file.write(f"{movie_title}|{reservation_time}|{','.join(seats)}\n")
+                    self.movies.append(Movie.from_string(line.strip()))
 
     def save_movies(self):
         with open(self.file_path, "w", encoding="utf-8") as file:
@@ -145,34 +131,6 @@ class Application(tk.Tk):
 
         self.user_register_button = tk.Button(self, text="회원가입", command=self.register_user)
         self.user_register_button.pack(pady=10)
-
-    def get_reserved_seats(self, movie_title, reservation_time):
-            reserved_seats = []
-            for reservation in self.booking_system.reservations:
-                if reservation[0] == movie_title and reservation[1] == reservation_time:
-                    reserved_seats.extend(reservation[2])
-            return reserved_seats
-    
-    def select_seat(self):
-            self.clear_frame()
-            ttk.Label(self.main_frame, text=f"{self.selected_movie.title}의 {self.selected_time} 상영 시간의 가능한 좌석:").grid(row=0, column=0, columnspan=6, pady=10)
-
-            ttk.Label(self.main_frame, text="스크린").grid(row=1, column=0, columnspan=6, pady=5)
-
-            reserved_seats = self.get_reserved_seats(self.selected_movie.title, self.selected_time)
-            self.seat_buttons = []
-            self.selected_seats = []
-
-            for i, seat in enumerate(self.selected_movie.seats[self.selected_time]):
-                row = i // 6
-                col = i % 6
-                state = tk.DISABLED if seat in reserved_seats else tk.NORMAL
-                seat_button = ttk.Checkbutton(self.main_frame, text=seat, state=state, command=lambda s=seat: self.toggle_seat(s))
-                seat_button.grid(row=row + 2, column=col, padx=5, pady=5)
-                self.seat_buttons.append(seat_button)
-
-            select_button = ttk.Button(self.main_frame, text="선택 완료", command=self.save_seat)
-            select_button.grid(row=8, column=0, columnspan=6, pady=10)
 
     def admin_login(self):
         password = simpledialog.askstring("비밀번호", "관리자 비밀번호를 입력하세요:", show='*')
@@ -339,46 +297,44 @@ class Application(tk.Tk):
         self.load_contacts()
 
     def on_add_contact(self):
-        contact = set_contact(self.contact_list)
+        contact = self.set_contact(self.contact_list)
         if contact:
             self.contact_list.append(contact)
-            self.refresh_listbox(self.contact_listbox)
+            self.refresh_listbox(self.contact_list, self.contact_listbox)
 
     def on_delete_contact(self):
         phone_number = simpledialog.askstring("Input", "삭제할 전화번호:")
         if phone_number:
-            delete_contact(self.contact_list, phone_number)
-            self.refresh_listbox(self.contact_listbox)
+            self.delete_contact(self.contact_list, phone_number)
+            self.refresh_listbox(self.contact_list, self.contact_listbox)
 
     def on_search_contact(self):
         phone_number = simpledialog.askstring("Input", "검색할 전화번호:")
         if phone_number:
-            search_contact(self.contact_list, phone_number, self.contact_listbox)
+            self.search_contact(self.contact_list, phone_number, self.contact_listbox)
 
     def on_update_contact(self):
         phone_number = simpledialog.askstring("Input", "수정할 전화번호:")
         if phone_number:
             new_password = simpledialog.askstring("Input", "새로운 비밀번호:")
             if new_password:
-                update_contact(self.contact_list, phone_number, new_password)
-                self.refresh_listbox(self.contact_listbox)
+                self.update_contact(self.contact_list, phone_number, new_password)
+                self.refresh_listbox(self.contact_list, self.contact_listbox)
 
-    def refresh_listbox(contact_list, listbox):
+    def refresh_listbox(self, contact_list, listbox):
         listbox.delete(0, tk.END)
         for contact in contact_list:
             listbox.insert(tk.END, contact.print_info())
 
-
     def on_exit(self):
-        save_contacts(self.contact_list)
+        self.save_contacts(self.contact_list)
         self.destroy()
 
     def on_home(self):
-        self.refresh_listbox(self.contact_listbox)
+        self.refresh_listbox(self.contact_list, self.contact_listbox)
 
     def load_contacts(self):
-        load_contacts(self.contact_list, self.contact_listbox)
-
+        self.load_contacts_from_file(self.contact_list, self.contact_listbox)
     def login_user(self):
         self.destroy()
         root = tk.Tk()
@@ -390,6 +346,69 @@ class Application(tk.Tk):
         root = tk.Tk()
         root.title("회원가입")
         UserReservationSystem(root, self.movies_file, self.reservations_file, register=True)
+
+    def set_contact(self, contact_list):
+        phone_number = simpledialog.askstring("Input", "전화번호:")
+        password = simpledialog.askstring("Input", "비밀번호:")
+        if phone_number and password:
+            for contact in contact_list:
+                if contact.phone_number == phone_number:
+                    messagebox.showerror("Error", "이미 가입된 사용자입니다.")
+                    return None
+            return Contact(phone_number, password)
+        return None
+
+    def delete_contact(self, contact_list, phone_number):
+        for i, contact in enumerate(contact_list):
+            if contact.phone_number == phone_number:
+                del contact_list[i]
+                messagebox.showinfo("Deleted", f"[삭제] 전화번호: {phone_number}")
+                return
+        messagebox.showerror("Error", f"일치하는 연락처를 찾을 수 없습니다: {phone_number}")
+
+    def search_contact(self, contact_list, phone_number, listbox):
+        found_contacts = sorted([contact for contact in contact_list if phone_number in contact.phone_number], key=lambda x: x.phone_number)
+        listbox.delete(0, tk.END)
+        for contact in found_contacts:
+            listbox.insert(tk.END, contact.print_info())
+
+    def update_contact(self, contact_list, phone_number, new_password):
+        for contact in contact_list:
+            if contact.phone_number == phone_number:
+                contact.password_plain = new_password
+                contact.password = contact.hash_password(new_password)
+                messagebox.showinfo("Updated", f"[수정] 전화번호: {phone_number}, 새로운 비밀번호: {new_password}")
+                return
+        messagebox.showerror("Error", "일치하는 연락처를 찾을 수 없습니다.")
+
+    def save_contacts(self, contact_list, filename="contacts.txt"):
+        with open(filename, "w", encoding="utf-8") as file:
+            for contact in contact_list:
+                reservations = str(contact.reservations)
+                file.write(f"{contact.phone_number}|{contact.password_plain}|{contact.password}|{reservations}\n")
+
+    def load_contacts_from_file(self, contact_list, listbox, filename="contacts.txt"):
+        if os.path.exists(filename):
+            with open(filename, "r", encoding="utf-8") as file:
+                try:
+                    lines = file.readlines()
+                    contact_list.clear()
+                    for line in lines:
+                        parts = line.strip().split('|')
+                        if len(parts) == 4:
+                            phone_number = parts[0]
+                            password_plain = parts[1]
+                            password = parts[2]
+                            reservations = eval(parts[3])
+                            contact_list.append(Contact(phone_number, password_plain, reservations))
+                    contact_list.sort(key=lambda x: x.phone_number)
+                    listbox.delete(0, tk.END)
+                    for contact in contact_list:
+                        listbox.insert(tk.END, contact.print_info())
+                except Exception as e:
+                    messagebox.showerror("Error", f"연락처 파일을 읽는 도중 오류가 발생했습니다: {e}")
+        else:
+            messagebox.showerror("Error", "저장된 연락처 파일을 찾을 수 없습니다.")
 
 # 연락처 관리 함수들
 def set_contact(contact_list):
