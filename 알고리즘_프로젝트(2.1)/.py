@@ -76,6 +76,7 @@ class BookingSystem:
         return movies_list
 
     def linear_search_movie_by_name(self, name):
+        # 선형 검색 알고리즘을 사용하여 영화 제목으로 영화 검색
         found_movies = []
         for movie in self.movies:
             if name.lower() in movie.title.lower():
@@ -634,6 +635,7 @@ class Application(tk.Tk):
         ttk.Button(self.main_frame, text="뒤로", command=self.user_main_menu).grid(row=i+1, column=0, pady=10)
 
     def selection_sort(self, data, key):
+        # 선택 정렬 알고리즘을 사용하여 예약 목록 정렬
         for i in range(len(data)):
             min_idx = i
             for j in range(i+1, len(data)):
