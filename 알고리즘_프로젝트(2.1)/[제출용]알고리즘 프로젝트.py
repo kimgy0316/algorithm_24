@@ -39,7 +39,7 @@ class BookingSystem:
         self.movies = []
         self.file_path = file_path
         self.admin_password = "123"
-        self.ticket_prices = {'성인': 10000, '청소년': 8000, '어린이': 5000}  # 가격 정보 추가
+        self.ticket_prices = {'성인': 18000, '청소년': 15000, '어린이': 10000}  # 가격 정보 추가
         self.load_movies()
         self.sort_movies()
 
@@ -140,7 +140,7 @@ class Application(tk.Tk):
         ttk.Button(self.main_frame, text="영화 관리", command=self.manage_movies).grid(row=0, column=0, pady=10)
         ttk.Button(self.main_frame, text="연락처 관리", command=self.contact_management).grid(row=1, column=0, pady=10)
         ttk.Button(self.main_frame, text="로그아웃", command=self.login_frame).grid(row=2, column=0, pady=10)
-    
+
     def manage_movies(self):
         for widget in self.main_frame.winfo_children():
             widget.destroy()
@@ -208,7 +208,7 @@ class Application(tk.Tk):
             select_button = tk.Button(search_window, text="영화 선택", command=lambda: self.select_movie(found_movies, search_window))
             select_button.pack(pady=5)
         else:
-                        messagebox.showinfo("검색 결과", "일치하는 영화가 없습니다.")
+            messagebox.showinfo("검색 결과", "일치하는 영화가 없습니다.")
 
     def select_movie(self, movies, search_window):
         movie_index = simpledialog.askinteger("영화 선택", "선택할 영화 번호를 입력하세요:") - 1
@@ -292,12 +292,14 @@ class Application(tk.Tk):
         contact = self.set_contact()
         if contact:
             self.contact_list.append(contact)
+            self.save_contacts_to_file()
             self.refresh_listbox(self.contact_listbox)
 
     def on_delete_contact(self):
         phone_number = simpledialog.askstring("Input", "삭제할 전화번호:")
         if phone_number:
             self.delete_contact(phone_number)
+            self.save_contacts_to_file()
             self.refresh_listbox(self.contact_listbox)
 
     def on_search_contact(self):
@@ -311,6 +313,7 @@ class Application(tk.Tk):
             new_password = simpledialog.askstring("Input", "새로운 비밀번호:")
             if new_password:
                 self.update_contact(phone_number, new_password)
+                self.save_contacts_to_file()
                 self.refresh_listbox(self.contact_listbox)
 
     def refresh_listbox(self, listbox):
@@ -613,11 +616,10 @@ class Application(tk.Tk):
         for widget in self.main_frame.winfo_children():
             widget.destroy()
         self.main_frame.grid(row=0, column=0, padx=10, pady=10)
-    
+
         if not self.current_user.reservations:
             ttk.Label(self.main_frame, text="예매 내역이 없습니다.").grid(row=0, column=0, pady=10)
         else:
-            self.current_user.reservations = self.selection_sort(self.current_user.reservations, key='영화')
             for i, reservation in enumerate(self.current_user.reservations):
                 age_groups_str = ", ".join([f"{k} {v}명" for k, v in reservation['연령대'].items() if v > 0])
                 reservation_details = (
@@ -630,44 +632,20 @@ class Application(tk.Tk):
                     f"결제 방법: {reservation.get('결제 방법', 'N/A')}\n"
                 )
                 ttk.Label(self.main_frame, text=reservation_details).grid(row=i, column=0, pady=10)
-    
-        ttk.Button(self.main_frame, text="뒤로", command=self.user_main_menu).grid(row=i+1, column=0, pady=10)
 
-    def quicksort(self, reservations):
-        if len(reservations) <= 1:
-            return reservations
-        else:
-            pivot = reservations[len(reservations) // 2]
-            less = [x for x in reservations if x["날짜"] < pivot["날짜"]]
-            equal = [x for x in reservations if x["날짜"] == pivot["날짜"]]
-            greater = [x for x in reservations if x["날짜"] > pivot["날짜"]]
-            return self.quicksort(less) + equal + self.quicksort(greater)
+        ttk.Button(self.main_frame, text="뒤로", command=self.user_main_menu).grid(row=len(self.current_user.reservations) + 1, column=0, pady=10)
 
-    def view_reservations(self):
-        for widget in self.main_frame.winfo_children():
-            widget.destroy()
-        self.main_frame.grid(row=0, column=0, padx=10, pady=10)
+    def linear_search_reservations_by_movie(self, reservations):
+        search_term = simpledialog.askstring("검색", "검색할 영화 제목을 입력하세요:")
+        if search_term is None:  # 사용자가 검색어 입력을 취소한 경우
+            return []
+        
+        found_reservations = []
+        for reservation in reservations:
+            if search_term.lower() in reservation['영화'].lower():
+                found_reservations.append(reservation)
+        return found_reservations
 
-        reservations = self.current_user.reservations
-        reservations = self.quicksort(reservations)
-
-        if not reservations:
-            ttk.Label(self.main_frame, text="예매 내역이 없습니다.").grid(row=0, column=0, pady=10)
-        else:
-            for i, reservation in enumerate(reservations):
-                reservation_details = (
-                    f"{i+1}. 영화: {reservation['영화']}\n"
-                    f"날짜: {reservation['날짜']}\n"
-                    f"시간: {reservation['시간']}\n"
-                    f"좌석: {', '.join(reservation['좌석'])}\n"
-                    f"결제 방법: {reservation['결제 방법']}"
-                )
-                ttk.Label(self.main_frame, text=reservation_details).grid(row=i, column=0, pady=10)
-
-        ttk.Button(self.main_frame, text="뒤로", command=self.user_main_menu).grid(row=len(reservations) + 1, column=0, pady=10)
-
-
-    # 연락처 관리 함수들
     def set_contact(self): # 전화번호, 비밀번호 저장(추가)
         phone_number = simpledialog.askstring("Input", "전화번호:")
         password = simpledialog.askstring("Input", "비밀번호:")
@@ -683,6 +661,7 @@ class Application(tk.Tk):
         for i, contact in enumerate(self.contact_list):
             if contact.phone_number == phone_number:
                 del self.contact_list[i]
+                self.save_contacts_to_file()
                 messagebox.showinfo("Deleted", f"[삭제] 전화번호: {phone_number}")
                 return
         messagebox.showerror("Error", f"일치하는 연락처를 찾을 수 없습니다: {phone_number}")
@@ -697,6 +676,7 @@ class Application(tk.Tk):
         for contact in self.contact_list:
             if contact.phone_number == phone_number:
                 contact.password = new_password
+                self.save_contacts_to_file()
                 messagebox.showinfo("Updated", f"[수정] 전화번호: {phone_number}, 새로운 비밀번호: {new_password}")
                 return
         messagebox.showerror("Error", "일치하는 연락처를 찾을 수 없습니다.")
