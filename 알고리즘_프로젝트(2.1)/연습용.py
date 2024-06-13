@@ -612,6 +612,21 @@ class Application(tk.Tk):
         messagebox.showinfo("예약 취소", "예약이 취소되었습니다.")
         self.user_main_menu()
     
+    def binary_search(self, reservations, movie_title):
+        low = 0
+        high = len(reservations) - 1
+
+        while low <= high:
+            mid = (low + high) // 2
+            if reservations[mid]['영화'] == movie_title:
+                return mid
+            elif reservations[mid]['영화'] < movie_title:
+                low = mid + 1
+            else:
+                high = mid - 1
+
+        return -1
+
     def view_reservations(self):
         for widget in self.main_frame.winfo_children():
             widget.destroy()
@@ -620,20 +635,34 @@ class Application(tk.Tk):
         if not self.current_user.reservations:
             ttk.Label(self.main_frame, text="예매 내역이 없습니다.").grid(row=0, column=0, pady=10)
         else:
-            for i, reservation in enumerate(self.current_user.reservations):
-                age_groups_str = ", ".join([f"{k} {v}명" for k, v in reservation['연령대'].items() if v > 0])
-                reservation_details = (
-                    f"{i+1}. 영화: {reservation['영화']}\n"
-                    f"날짜: {reservation['날짜']}\n"
-                    f"시간: {reservation['시간']}\n"
-                    f"좌석: {', '.join(reservation['좌석'])}\n"
-                    f"연령대: {age_groups_str}\n"
-                    f"총액: {reservation['총액']}원\n"
-                    f"결제 방법: {reservation.get('결제 방법', 'N/A')}\n"
-                )
-                ttk.Label(self.main_frame, text=reservation_details).grid(row=i, column=0, pady=10)
+            self.current_user.reservations.sort(key=lambda x: x['영화'])  # 영화 제목으로 정렬
+            row_index = 0
+            found_any_movie = False  # 영화를 찾았는지 여부를 추적
 
-        ttk.Button(self.main_frame, text="뒤로", command=self.user_main_menu).grid(row=len(self.current_user.reservations) + 1, column=0, pady=10)
+            for reservation in self.current_user.reservations:
+                movie_title = reservation['영화']
+                movie_index = self.binary_search(self.current_user.reservations, movie_title)
+                if movie_index != -1:
+                    found_any_movie = True
+                    reservation = self.current_user.reservations[movie_index]
+                    age_groups_str = ", ".join([f"{k} {v}명" for k, v in reservation['연령대'].items() if v > 0])
+                    reservation_details = (
+                        f"영화: {reservation['영화']}\n"
+                        f"날짜: {reservation['날짜']}\n"
+                        f"시간: {reservation['시간']}\n"
+                        f"좌석: {', '.join(reservation['좌석'])}\n"
+                        f"연령대: {age_groups_str}\n"
+                        f"총액: {reservation['총액']}원\n"
+                        f"결제 방법: {reservation.get('결제 방법', 'N/A')}\n"
+                    )
+                    ttk.Label(self.main_frame, text=reservation_details).grid(row=row_index, column=0, pady=10)
+                    row_index += 1
+
+            if not found_any_movie:
+                ttk.Label(self.main_frame, text="해당 영화를 찾을 수 없습니다.").grid(row=row_index, column=0, pady=10)
+
+        ttk.Button(self.main_frame, text="뒤로", command=self.user_main_menu).grid(row=row_index+1, column=0, pady=10)
+
 
     def linear_search_reservations_by_movie(self, reservations):
         search_term = simpledialog.askstring("검색", "검색할 영화 제목을 입력하세요:")
